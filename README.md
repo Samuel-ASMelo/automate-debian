@@ -85,7 +85,7 @@ O script não pode determinar o `gateway` e os `dns-nameservers` da sua rede.
     sudo systemctl restart networking
     ```
 4.   *(Opcional, mas recomendado)* **Reinicie o servidor** para garantir que todas as configurações de rede sejam aplicadas sem conflitos.
-    '''bash
+    ```
     sudo reboot
     ```
 
