@@ -6,7 +6,7 @@
 # Este script automatiza a criacao de usuarios, grupos, diretorios,
 # permissoes e a instalacao e configuracao inicial de pacotes (Apache, UFW).
 #
-# As tarefas que requerem intervencao manual estao detalhadas em comentarios.
+# As tarefas que requerem intervencao manual estao detalhadas README.md
 # ==============================================================================
 
 echo "Iniciando a configuracao de infraestrutura..."
@@ -27,7 +27,17 @@ sudo useradd -m -g operacoes ops1
 sudo useradd -m -g operacoes ops2
 sudo useradd -m -g desenvolvedores -G operacoes techlead
 
-echo "Grupos e usuarios criados com sucesso."
+# Definindo a senha inicial 'abc@123' para cada usuario.
+# ATENCAO: Esta e uma senha padrao. O administrador deve exigir que os
+# usuarios a alterem imediatamente apos o primeiro login para garantir a seguranca.
+echo "Definindo senhas iniciais para os novos usuarios..."
+echo "dev1:abc@123" | sudo chpasswd
+echo "dev2:abc@123" | sudo chpasswd
+echo "ops1:abc@123" | sudo chpasswd
+echo "ops2:abc@123" | sudo chpasswd
+echo "techlead:abc@123" | sudo chpasswd
+
+echo "Grupos e usuarios criados e configurados com sucesso."
 
 # ------------------------------------------------------------------------------
 # 6.3.Permissões sobre arquivos
@@ -67,7 +77,7 @@ sudo cat << EOF > /srv/app/index.html
 </head>
 <body>
     <h1>Bem-vindo ao meu servidor Apache!</h1>
-    <p>Esta é a pagina inicial do diretório /srv/app/.</p>
+    <p>Esta e a pagina inicial do diretorio /srv/app/.</p>
 </body>
 </html>
 EOF
@@ -84,6 +94,9 @@ sudo systemctl restart apache2
 # ------------------------------------------------------------------------------
 # 6.5. Configurações de rede
 # ------------------------------------------------------------------------------
+# O useradd -m já cria o diretório, mas para evitar problemas de login
+# em ambientes específicos, a verificação e configuração de permissões é
+# uma boa prática de robustez para o script.
 echo "Configurando o firewall UFW..."
 
 # Definindo a politica padrao: nega entrada, permite saida.
@@ -99,6 +112,4 @@ sudo ufw --force enable
 
 echo "Firewall UFW configurado e ativado."
 
-echo "Procedimento Finalizado"
-
-# ------------------------------------------------------------------------------
+echo "Configuracao Concluida."
