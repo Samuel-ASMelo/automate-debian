@@ -99,4 +99,6 @@ sudo ufw --force enable
 
 echo "Firewall UFW configurado e ativado."
 
+echo "Procedimento Finalizado"
+
 # ------------------------------------------------------------------------------
