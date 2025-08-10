@@ -6,7 +6,7 @@
 # Este script automatiza a criacao de usuarios, grupos, diretorios,
 # permissoes e a instalacao e configuracao inicial de pacotes (Apache, UFW).
 #
-# As tarefas que requerem intervencao manual estao detalhadas README.md
+# As tarefas que requerem intervencao manual estao detalhadas em comentarios.
 # ==============================================================================
 
 echo "Iniciando a configuracao de infraestrutura..."
@@ -66,18 +66,19 @@ echo "Atualizando pacotes e instalando Apache, UFW, Quota..."
 sudo apt-get update
 sudo apt-get install -y apache2 ufw quota
 
-# Criando uma pagina HTML de teste.
+# Criando uma pagina HTML de teste com codificacao UTF-8 para evitar erros de caracteres.
 echo "Configurando Apache..."
 sudo mkdir -p /srv/app
 sudo cat << EOF > /srv/app/index.html
 <!DOCTYPE html>
 <html>
 <head>
+    <meta charset="UTF-8">
     <title>Servidor Apache</title>
 </head>
 <body>
     <h1>Bem-vindo ao meu servidor Apache!</h1>
-    <p>Esta e a pagina inicial do diretorio /srv/app/.</p>
+    <p>Esta é a pagina inicial do diretorio /srv/app/.</p>
 </body>
 </html>
 EOF
@@ -92,11 +93,19 @@ sudo sed -i '/<Directory \/var\/www\/>/i <Directory \/srv\/app\/>\n    Options I
 sudo systemctl restart apache2
 
 # ------------------------------------------------------------------------------
-# 6.5. Configurações de rede
+# 6.5. Configurações de rede e segurança de servicos
 # ------------------------------------------------------------------------------
-# O useradd -m já cria o diretório, mas para evitar problemas de login
-# em ambientes específicos, a verificação e configuração de permissões é
-# uma boa prática de robustez para o script.
+# Concedendo permissao de leitura e execucao para o usuario do Apache
+# (www-data) no diretorio /srv/app, resolvendo o erro 403 Forbidden.
+# Usamos setfacl para dar a permissao diretamente ao usuario, sem
+# alterar as permissoes de outros.
+echo "Configurando permissoes para o usuario do Apache..."
+sudo setfacl -m u:www-data:r-x /srv/app
+
+# Reiniciando o Apache para que a nova permissao seja reconhecida.
+sudo systemctl restart apache2
+
+# Configurando o firewall UFW...
 echo "Configurando o firewall UFW..."
 
 # Definindo a politica padrao: nega entrada, permite saida.
@@ -112,4 +121,4 @@ sudo ufw --force enable
 
 echo "Firewall UFW configurado e ativado."
 
-echo "Configuracao Concluida."
+echo Configuração Concluída.
