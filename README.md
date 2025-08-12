@@ -4,21 +4,36 @@
 
 Este projeto consiste em um script em Shell (`setup_infra.sh`) que automatiza a configuração inicial de um servidor Debian. Ele foi desenvolvido para otimizar o processo de criação de usuários, grupos, permissões de diretórios, e a instalação e configuração de pacotes essenciais como Apache, UFW e ferramentas de cota de disco.
 
-O objetivo é fornecer uma base de infraestrutura segura e funcional de forma rápida, com instruções claras para as poucas tarefas que exigem intervenção manual, documentadas neste arquivo.
+O objetivo é fornecer uma base de infraestrutura segura e funcional de forma rápida e confiável. O script verifica o estado do sistema a cada passo, garantindo que as configurações estejam sempre corretas e evitando retrabalho. As poucas tarefas que exigem intervenção manual estão documentadas neste arquivo.
 
 ## Funcionalidades do Script
 
-O script `setup_infra.sh` executa as seguintes tarefas automaticamente:
-- **Criação de Grupos e Usuários:** Cria os grupos `desenvolvedores` e `operacoes`, além dos usuários `dev1`, `dev2`, `ops1`, `ops2` e `techlead`, com a atribuição correta de grupos.
-- **Configuração de Diretórios e Permissões:** Cria o diretório `/srv/app` e define as permissões apropriadas usando `chown`, `chmod` e `setfacl`.
-- **Instalação de Pacotes:** Instala o Apache, UFW e as ferramentas de cota de disco.
-- **Configuração do Apache:** Altera o `DocumentRoot` para o diretório `/srv/app` e cria um arquivo `index.html` de teste.
-- **Configuração do UFW (Firewall):** Define políticas padrão e adiciona regras para permitir o tráfego nas portas SSH (22) e HTTP (80).
+O script `setup_infra.sh` executa as seguintes tarefas, verificando a existência de cada configuração antes de prosseguir:
+
+* **Criação de Grupos e Usuários:**
+    * Cria os grupos `desenvolvedores` e `operacoes` se eles não existirem.
+    * Cria os usuários `dev1`, `dev2`, `ops1`, `ops2` e `techlead`, atribuindo-os aos seus grupos.
+    * Define uma senha padrão para cada usuário, mas **apenas se a senha ainda não estiver configurada**.
+* **Configuração de Diretórios e Permissões:**
+    * Cria o diretório `/srv/app` se ele não existir.
+    * Define as permissões apropriadas usando `chown` e `chmod` (`2770`).
+    * Usa `setfacl` para adicionar permissões granulares aos grupos e usuários específicos (`operacoes` e `www-data`).
+* **Instalação de Pacotes:**
+    * Atualiza o índice de pacotes (`apt-get update`).
+    * Instala o Apache, UFW e as ferramentas de cota de disco, mas **somente se eles não estiverem instalados**.
+* **Configuração do Apache:**
+    * Altera o `DocumentRoot` para o diretório `/srv/app` e adiciona um bloco de permissões (`<Directory>`), mas **apenas se a configuração não existir**.
+    * Cria um arquivo `index.html` de teste.
+    * Reinicia o serviço Apache, mas **somente se ele estiver ativo**.
+* **Configuração do UFW (Firewall):**
+    * Define as políticas padrão (`deny incoming` e `allow outgoing`), **verificando cada uma delas individualmente**.
+    * Adiciona regras para permitir o tráfego nas portas SSH (`OpenSSH`) e HTTP (`WWW`), **mas apenas se elas ainda não existirem**.
+    * Habilita o firewall, **se ele estiver inativo**.
 
 ## Pré-requisitos
 
-- Sistema operacional baseado em Debian (como Debian, Ubuntu, etc.).
-- Acesso de superusuário (root) ou permissões `sudo`.
+* Sistema operacional baseado em Debian (como Debian, Ubuntu, etc.).
+* Acesso de superusuário (root) ou permissões `sudo`.
 
 ## Como Usar
 
@@ -91,8 +106,8 @@ O script não pode determinar o `gateway` e os `dns-nameservers` da sua rede.
 
 ## Autores
 
-- André Fellipe;
-- Efraim Fonseca;
-- Lucas Emanuel;
-- Marcos Eduardo;
-- Samuel Ademar;
+* André Fellipe
+* Efraim Fonseca
+* Lucas Emanuel
+* Marcos Eduardo
+* Samuel Ademar
