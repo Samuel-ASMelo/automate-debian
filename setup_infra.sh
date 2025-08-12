@@ -146,7 +146,7 @@ html_file="/srv/app/index.html"
 if [ -f "$html_file" ]; then
     echo "Arquivo '$html_file' já existe. Procedimento aplicado anteriormente."
 else
-    sudo cat << EOF > "$html_file"
+    sudo tee "$html_file" > /dev/null << EOF
 <!DOCTYPE html>
 <html>
 <head>
