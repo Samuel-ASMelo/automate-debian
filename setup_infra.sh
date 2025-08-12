@@ -6,70 +6,147 @@
 # Este script automatiza a criacao de usuarios, grupos, diretorios,
 # permissoes e a instalacao e configuracao inicial de pacotes (Apache, UFW).
 #
-# As tarefas que requerem intervencao manual estao detalhadas em comentarios.
+# As tarefas que requerem intervencao manual estao detalhadas no arquivo README.md.
 # ==============================================================================
 
 echo "Iniciando a configuracao de infraestrutura..."
 
 # ------------------------------------------------------------------------------
-# 6.1.Criação de grupos e contas
+# 6.1. Criação de grupos e contas
 # ------------------------------------------------------------------------------
-# Criando os grupos 'desenvolvedores' e 'operacoes'.
-echo "Criando grupos de usuarios..."
-sudo groupadd desenvolvedores
-sudo groupadd operacoes
+echo "--- Verificando e criando grupos e usuários ---"
 
-# Criando usuarios e adicionando-os aos grupos.
-echo "Criando usuarios e atribuindo-os aos grupos..."
-sudo useradd -m -g desenvolvedores dev1
-sudo useradd -m -g desenvolvedores dev2
-sudo useradd -m -g operacoes ops1
-sudo useradd -m -g operacoes ops2
-sudo useradd -m -g desenvolvedores -G operacoes techlead
+# Criando o grupo 'desenvolvedores'
+if getent group desenvolvedores > /dev/null; then
+    echo "Grupo 'desenvolvedores' já existe. Procedimento aplicado anteriormente."
+else
+    sudo groupadd desenvolvedores
+    echo "Grupo 'desenvolvedores' criado com sucesso."
+fi
 
-# Definindo a senha inicial 'abc@123' para cada usuario.
-# ATENCAO: Esta e uma senha padrao. O administrador deve exigir que os
-# usuarios a alterem imediatamente apos o primeiro login para garantir a seguranca.
-echo "Definindo senhas iniciais para os novos usuarios..."
-echo "dev1:abc@123" | sudo chpasswd
-echo "dev2:abc@123" | sudo chpasswd
-echo "ops1:abc@123" | sudo chpasswd
-echo "ops2:abc@123" | sudo chpasswd
-echo "techlead:abc@123" | sudo chpasswd
+# Criando o grupo 'operacoes'
+if getent group operacoes > /dev/null; then
+    echo "Grupo 'operacoes' já existe. Procedimento aplicado anteriormente."
+else
+    sudo groupadd operacoes
+    echo "Grupo 'operacoes' criado com sucesso."
+fi
 
-echo "Grupos e usuarios criados e configurados com sucesso."
+# Criando usuários e atribuindo-os aos grupos
+declare -A users=(
+    ["dev1"]="desenvolvedores"
+    ["dev2"]="desenvolvedores"
+    ["ops1"]="operacoes"
+    ["ops2"]="operacoes"
+    ["techlead"]="desenvolvedores"
+)
+techlead_extra_group="operacoes"
+password="abc@123"
+
+for user in "${!users[@]}"; do
+    if id "$user" &>/dev/null; then
+        echo "Usuário '$user' já existe. Procedimento aplicado anteriormente."
+    else
+        primary_group=${users[$user]}
+        if [[ "$user" == "techlead" ]]; then
+            sudo useradd -m -g "$primary_group" -G "$techlead_extra_group" "$user"
+        else
+            sudo useradd -m -g "$primary_group" "$user"
+        fi
+        echo "Usuário '$user' criado e atribuído ao grupo '$primary_group' com sucesso."
+    fi
+    # Definindo senhas
+    if sudo passwd -S "$user" | grep -q "P"; then
+        echo "Senha para o usuário '$user' já está configurada. Procedimento aplicado anteriormente."
+    else
+        echo "$user:$password" | sudo chpasswd
+        echo "Senha para o usuário '$user' definida com sucesso."
+    fi
+done
 
 # ------------------------------------------------------------------------------
-# 6.3.Permissões sobre arquivos
+# 6.3. Permissões sobre arquivos
 # ------------------------------------------------------------------------------
-# Criando o diretorio para a aplicacao e definindo as permissoes.
-echo "Criando diretorio /srv/app e ajustando permissoes..."
-sudo mkdir -p /srv/app
+echo "--- Verificando e configurando diretórios e permissões ---"
+dir="/srv/app"
+group="desenvolvedores"
 
-# Definindo 'desenvolvedores' como o grupo dono do diretorio.
-sudo chown :desenvolvedores /srv/app
+# Criando o diretorio
+if [ -d "$dir" ]; then
+    echo "Diretório '$dir' já existe. Procedimento aplicado anteriormente."
+else
+    sudo mkdir -p "$dir"
+    echo "Diretório '$dir' criado com sucesso."
+fi
 
-# Concedendo permissoes de leitura/escrita/execucao ao grupo dono
-# e ativando o bit setgid (o '2' no inicio) para heranca de grupo.
-sudo chmod 2770 /srv/app
+# Definindo o grupo dono
+current_group=$(stat -c '%G' "$dir")
+if [ "$current_group" == "$group" ]; then
+    echo "Grupo dono de '$dir' já é '$group'. Procedimento aplicado anteriormente."
+else
+    sudo chown :"$group" "$dir"
+    echo "Grupo dono de '$dir' definido como '$group' com sucesso."
+fi
 
-# Usando ACL para conceder permissoes de leitura e execucao ao grupo 'operacoes'.
-sudo setfacl -m g:operacoes:r-x /srv/app
+# Concedendo permissoes e ativando o bit setgid
+current_perms=$(stat -c '%a' "$dir")
+if [ "$current_perms" == "2770" ]; then
+    echo "Permissões de '$dir' já são '2770'. Procedimento aplicado anteriormente."
+else
+    sudo chmod 2770 "$dir"
+    echo "Permissões de '$dir' definidas como '2770' com sucesso."
+fi
 
-echo "Diretorio /srv/app configurado com sucesso."
+# Usando ACL para conceder permissoes ao grupo 'operacoes'
+if getfacl "$dir" | grep -q "group:operacoes:r-x"; then
+    echo "ACL para o grupo 'operacoes' em '$dir' já existe. Procedimento aplicado anteriormente."
+else
+    sudo setfacl -m g:operacoes:r-x "$dir"
+    echo "ACL para o grupo 'operacoes' em '$dir' aplicada com sucesso."
+fi
+
+echo "Diretório /srv/app configurado com sucesso."
 
 # ------------------------------------------------------------------------------
 # 6.7. Manutenção de pacotes
 # ------------------------------------------------------------------------------
-# Atualizando a lista de pacotes e instalando Apache, UFW e Quota.
-echo "Atualizando pacotes e instalando Apache, UFW, Quota..."
-sudo apt-get update
-sudo apt-get install -y apache2 ufw quota
+echo "--- Verificando e instalando pacotes e configurações ---"
 
-# Criando uma pagina HTML de teste com codificacao UTF-8 para evitar erros de caracteres.
-echo "Configurando Apache..."
-sudo mkdir -p /srv/app
-sudo cat << EOF > /srv/app/index.html
+# Atualizando a lista de pacotes
+if sudo apt-get update; then
+    echo "Lista de pacotes atualizada com sucesso."
+fi
+
+# Instalando Apache
+if ! dpkg -s apache2 &>/dev/null; then
+    sudo apt-get install -y apache2
+    echo "Apache instalado com sucesso."
+else
+    echo "Apache já está instalado. Procedimento aplicado anteriormente."
+fi
+
+# Instalando UFW
+if ! dpkg -s ufw &>/dev/null; then
+    sudo apt-get install -y ufw
+    echo "UFW instalado com sucesso."
+else
+    echo "UFW já está instalado. Procedimento aplicado anteriormente."
+fi
+
+# Instalando Quota
+if ! dpkg -s quota &>/dev/null; then
+    sudo apt-get install -y quota
+    echo "Quota instalado com sucesso."
+else
+    echo "Quota já está instalado. Procedimento aplicado anteriormente."
+fi
+
+# Criando a pagina HTML de teste
+html_file="/srv/app/index.html"
+if [ -f "$html_file" ]; then
+    echo "Arquivo '$html_file' já existe. Procedimento aplicado anteriormente."
+else
+    sudo cat << EOF > "$html_file"
 <!DOCTYPE html>
 <html>
 <head>
@@ -82,43 +159,106 @@ sudo cat << EOF > /srv/app/index.html
 </body>
 </html>
 EOF
+    echo "Arquivo '$html_file' criado com sucesso."
+fi
 
-# Alterando o DocumentRoot do Apache para o novo diretorio.
-sudo sed -i 's|DocumentRoot /var/www/html|DocumentRoot /srv/app|g' /etc/apache2/sites-available/000-default.conf
+# Corrigindo o grupo dono do arquivo para os desenvolvedores
+file_group=$(stat -c '%G' "$html_file")
+if [ "$file_group" == "$group" ]; then
+    echo "Grupo dono de '$html_file' já é '$group'. Procedimento aplicado anteriormente."
+else
+    sudo chown :"$group" "$html_file"
+    echo "Grupo dono de '$html_file' definido como '$group' com sucesso."
+fi
 
-# Adicionando um bloco de permissoes para o novo diretorio.
-sudo sed -i '/<Directory \/var\/www\/>/i <Directory \/srv\/app\/>\n    Options Indexes FollowSymLinks\n    AllowOverride None\n    Require all granted\n</Directory>' /etc/apache2/sites-available/000-default.conf
+# Concedendo ACL para o grupo 'operacoes' no arquivo
+if getfacl "$html_file" | grep -q "group:operacoes:r-x"; then
+    echo "ACL para o grupo 'operacoes' em '$html_file' já existe. Procedimento aplicado anteriormente."
+else
+    sudo setfacl -m g:operacoes:r-x "$html_file"
+    echo "ACL para o grupo 'operacoes' em '$html_file' aplicada com sucesso."
+fi
 
-# Reiniciando o servico do Apache para aplicar as mudancas.
-sudo systemctl restart apache2
+# Alterando o DocumentRoot do Apache
+apache_conf="/etc/apache2/sites-available/000-default.conf"
+if grep -q "DocumentRoot /srv/app" "$apache_conf"; then
+    echo "DocumentRoot do Apache já está configurado. Procedimento aplicado anteriormente."
+else
+    sudo sed -i 's|DocumentRoot /var/www/html|DocumentRoot /srv/app|g' "$apache_conf"
+    echo "DocumentRoot do Apache alterado com sucesso."
+fi
+
+# Adicionando um bloco de permissoes para o novo diretorio
+if grep -q "<Directory /srv/app/>" "$apache_conf"; then
+    echo "Bloco de permissões para /srv/app/ já existe. Procedimento aplicado anteriormente."
+else
+    sudo sed -i '/<Directory \/var\/www\/>/i <Directory \/srv\/app\/>\n    Options Indexes FollowSymLinks\n    AllowOverride None\n    Require all granted\n</Directory>' "$apache_conf"
+    echo "Bloco de permissões para /srv/app/ adicionado com sucesso."
+fi
 
 # ------------------------------------------------------------------------------
 # 6.5. Configurações de rede e segurança de servicos
 # ------------------------------------------------------------------------------
-# Concedendo permissao de leitura e execucao para o usuario do Apache
-# (www-data) no diretorio /srv/app, resolvendo o erro 403 Forbidden.
-# Usamos setfacl para dar a permissao diretamente ao usuario, sem
-# alterar as permissoes de outros.
-echo "Configurando permissoes para o usuario do Apache..."
-sudo setfacl -m u:www-data:r-x /srv/app
+echo "--- Configurando permissões de serviço e firewall ---"
 
-# Reiniciando o Apache para que a nova permissao seja reconhecida.
-sudo systemctl restart apache2
+# Concedendo ACL para o usuario do Apache
+if getfacl "$dir" | grep -q "user:www-data:r-x"; then
+    echo "ACL para o usuario 'www-data' em '$dir' já existe. Procedimento aplicado anteriormente."
+else
+    sudo setfacl -m u:www-data:r-x "$dir"
+    echo "ACL para o usuario 'www-data' em '$dir' aplicada com sucesso."
+fi
 
-# Configurando o firewall UFW...
+# Reiniciando o Apache para que a nova permissao seja reconhecida
+if systemctl is-active --quiet apache2; then
+    echo "Reiniciando o serviço Apache para aplicar as mudanças..."
+    sudo systemctl restart apache2
+    echo "Serviço Apache reiniciado com sucesso."
+else
+    echo "Serviço Apache não está ativo, ignorando reinício."
+fi
+
+# Configurando o firewall UFW
 echo "Configurando o firewall UFW..."
 
-# Definindo a politica padrao: nega entrada, permite saida.
-sudo ufw default deny incoming
-sudo ufw default allow outgoing
+# 1. Checa e define a política padrão de entrada (deny)
+if sudo ufw status verbose | grep -q "Default: deny (incoming)"; then
+    echo "Política de entrada do UFW já está configurada para 'deny'. Procedimento aplicado anteriormente."
+else
+    sudo ufw default deny incoming
+    echo "Política de entrada do UFW definida para 'deny' com sucesso."
+fi
 
-# Adicionando regras para as portas permitidas.
-sudo ufw allow ssh
-sudo ufw allow http
+# 2. Checa e define a política padrão de saída (allow)
+if sudo ufw status verbose | grep -q "Default: allow (outgoing)"; then
+    echo "Política de saída do UFW já está configurada para 'allow'. Procedimento aplicado anteriormente."
+else
+    sudo ufw default allow outgoing
+    echo "Política de saída do UFW definida para 'allow' com sucesso."
+fi
 
-# Habilitando o firewall.
-sudo ufw --force enable
+# 3. Checa e permite o tráfego SSH
+if sudo ufw status | grep -q "OpenSSH"; then
+    echo "Regra para SSH já existe. Procedimento aplicado anteriormente."
+else
+    sudo ufw allow ssh
+    echo "Regra para SSH adicionada com sucesso."
+fi
 
-echo "Firewall UFW configurado e ativado."
+# 4. Checa e permite o tráfego HTTP
+if sudo ufw status | grep -q "WWW"; then
+    echo "Regra para HTTP já existe. Procedimento aplicado anteriormente."
+else
+    sudo ufw allow http
+    echo "Regra para HTTP adicionada com sucesso."
+fi
 
-echo Configuração Concluída.
+# 5. Habilita o firewall
+if sudo ufw status | grep -q "Status: active"; then
+    echo "Firewall UFW já está ativo. Procedimento aplicado anteriormente."
+else
+    sudo ufw --force enable
+    echo "Firewall UFW ativado com sucesso."
+fi
+
+echo "Configuração Concluída."
